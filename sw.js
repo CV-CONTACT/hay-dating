@@ -1,0 +1,12 @@
+const CACHE = 'hay-dating-v2';
+
+self.addEventListener('install', e => { self.skipWaiting(); });
+self.addEventListener('activate', e => { e.waitUntil(clients.claim()); });
+
+self.addEventListener('fetch', e => {
+  const url = e.request.url;
+  // Never intercept API calls
+  if (url.includes('supabase.co') || url.includes('telegram.org') || e.request.method !== 'GET') return;
+  if (!url.startsWith(self.location.origin)) return;
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+});
