@@ -71,25 +71,36 @@
     </div>
 
     <script>
-        // ДАННЫЕ ВСТАВЛЕНЫ АВՏՈՄԱՏ
         const SB_URL = "https://czuqwxwueuyaetyodysi.supabase.co"; 
-        const SB_KEY = "sb_publishable_qYe8ZwzWFPZGYQynxOslDA_ZPOEnrIH";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6dXF3eHd1ZXV5YWV0eW9keXNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDEwNzgsImV4cCI6MjA4OTQxNzA3OH0.O69JsU_mgDs1r9kSkYNzuDGMYMa90VfsPVEVfTewznU";
         const sb = supabase.createClient(SB_URL, SB_KEY);
 
         let me = null, curM = null;
 
         async function auth() {
-            const n = document.getElementById('ai-n').value, p = document.getElementById('ai-p').value;
-            if(!n || !p) return alert("Լրացրեք դաշտերը");
-            let { data: u } = await sb.from('profiles').select().eq('name', n).eq('password', p).maybeSingle();
-            if (!u) {
-                const { data: nu } = await sb.from('profiles').insert({ name: n, password: p }).select().single();
-                u = nu;
+            try {
+                const n = document.getElementById('ai-n').value, p = document.getElementById('ai-p').value;
+                if(!n || !p) return alert("Լրացրեք դաշտերը");
+                
+                // Пробуем найти
+                const { data: u, error: err1 } = await sb.from('profiles').select().eq('name', n).eq('password', p).maybeSingle();
+                if (err1) return alert("Ошибка поиска БД: " + err1.message + " (Код: " + err1.code + ")");
+
+                let user = u;
+                // Если нет, создаем
+                if (!user) {
+                    const { data: nu, error: err2 } = await sb.from('profiles').insert({ name: n, password: p }).select().single();
+                    if (err2) return alert("Ошибка создания БД: " + err2.message + " (Код: " + err2.code + ")");
+                    user = nu;
+                }
+                
+                me = user;
+                document.getElementById('my-n').innerText = me.name;
+                document.getElementById('my-p').src = me.photos || '';
+                go('p-feed'); loadFeed(); initRT();
+            } catch (e) {
+                alert("Критическая ошибка JS: " + e.message);
             }
-            me = u;
-            document.getElementById('my-n').innerText = me.name;
-            document.getElementById('my-p').src = me.photos || '';
-            go('p-feed'); loadFeed(); initRT();
         }
 
         async function loadFeed() {
