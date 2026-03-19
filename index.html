@@ -138,10 +138,10 @@ input,textarea,select{font-family:inherit}
 .mr{display:flex;align-items:flex-end;animation:ms .3s ease}
 .mr.me{flex-direction:row-reverse}
 @keyframes ms{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.bb{max-width:78%;min-width:40px;padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.55;overflow-wrap:break-word;word-break:normal}
+.bb{max-width:78%;min-width:60px;padding:10px 14px 6px;border-radius:18px;font-size:14px;line-height:1.55;overflow-wrap:break-word;word-break:normal}
 .bb.th{background:var(--card2);border:1px solid var(--brd);border-bottom-left-radius:4px}
 .bb.me{background:var(--grad);color:#fff;border-bottom-right-radius:4px}
-.bt{font-size:10px;color:var(--txt3);margin-top:2px}.mr.me .bt{text-align:right}
+.bt{font-size:10px;color:rgba(255,255,255,.4);margin-top:4px}.mr.me .bt{text-align:right}.bb.th .bt{color:var(--txt3)}
 .ctinpw{padding:8px 12px calc(8px + var(--safe));border-top:1px solid var(--brd);background:var(--bg);flex-shrink:0;position:relative;z-index:5}
 .ctinpr{display:flex;align-items:flex-end;gap:8px}
 .ctinp{flex:1;background:var(--card2);border:1px solid var(--brd);border-radius:22px;padding:10px 16px;font-size:16px;color:var(--txt);outline:none;resize:none;max-height:100px;line-height:1.4}
@@ -449,8 +449,9 @@ function openC(m){
   document.getElementById('mB').innerHTML='';cIds.clear();
   document.getElementById('chatS').classList.add('on');
   loadMsgs();
+  if(cPoll)clearInterval(cPoll);cPoll=setInterval(loadMsgs,2000);
 }
-function closeC(){document.getElementById('chatS').classList.remove('on');cMid=null;}
+function closeC(){document.getElementById('chatS').classList.remove('on');if(cPoll){clearInterval(cPoll);cPoll=null;}cMid=null;}
 async function loadMsgs(){
   if(!cMid)return;
   try{const{data:msgs}=await sb.from('messages').select().eq('match_id',cMid).order('id',{ascending:true}).limit(200);
@@ -461,11 +462,14 @@ async function loadMsgs(){
 function addMsg(m){
   const mine=m.sender_id===me.id,row=document.createElement('div');row.className=`mr ${mine?'me':''}`;
   const t=m.created_at?new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
-  row.innerHTML=`<div><div class="bb ${mine?'me':'th'}">${esc(m.text)}</div><div class="bt">${t}</div></div>`;
+  row.innerHTML=`<div class="bb ${mine?'me':'th'}">${esc(m.text)}<div class="bt">${t}</div></div>`;
   const box=document.getElementById('mB');box.appendChild(row);box.scrollTop=box.scrollHeight;
 }
 async function cSend(){const inp=document.getElementById('cI'),txt=inp.value.trim();if(!txt||!cMid)return;inp.value='';inp.style.height='auto';
-  try{await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:txt});}catch(e){}}
+  // Show immediately
+  const fakeId=Date.now();cIds.add(fakeId);
+  addMsg({sender_id:me.id,text:txt,created_at:new Date().toISOString()});
+  try{await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:txt});}catch(e){toast('Ошибка отправки');}}
 function cK(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cSend();}}
 function arI(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
 
@@ -495,7 +499,7 @@ function renderP(){
   }
 }
 function togEdit(){ed=!ed;renderP();}
-function upPh(inp){const f=inp.files[0];if(!f)return;toast('Загрузка...');const rd=new FileReader();rd.onload=function(e){const img=new Image();img.onload=function(){const cv=document.createElement('canvas');const mx=80;let w=img.width,h=img.height;if(w>h){h=Math.round(h*(mx/w));w=mx;}else{w=Math.round(w*(mx/h));h=mx;}cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);const d=cv.toDataURL('image/jpeg',.3);
+function upPh(inp){const f=inp.files[0];if(!f)return;toast('Загрузка...');const rd=new FileReader();rd.onload=function(e){const img=new Image();img.onload=function(){const cv=document.createElement('canvas');const mx=60;let w=img.width,h=img.height;if(w>h){h=Math.round(h*(mx/w));w=mx;}else{w=Math.round(w*(mx/h));h=mx;}cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);const d=cv.toDataURL('image/jpeg',.2);
   sb.from('profiles').update({photos:d}).eq('id',me.id).select().single().then(({data,error})=>{console.log('Photo upload:',d.length,'chars',error);if(data){me=data;ed=false;renderP();toast('Фото ✓');}else{toast(error?error.message:'Ошибка');console.error('Photo error:',error);}});};img.src=e.target.result;};rd.readAsDataURL(f);}
 async function saveP(){const d={name:document.getElementById('eN').value.trim(),age:parseInt(document.getElementById('eA').value)||me.age,city:document.getElementById('eC').value.trim(),bio:document.getElementById('eB').value.trim(),interests:document.getElementById('eI').value.trim()};
   const{data,error}=await sb.from('profiles').update(d).eq('id',me.id).select().single();if(data){me=data;ed=false;renderP();toast('Сохранено ✓');}else toast(error?error.message:'Ошибка');}
@@ -511,8 +515,9 @@ function aFlt(){document.getElementById('fM').classList.remove('on');loadC();}
 // NOTIFY
 let _ac=null;
 function getAC(){if(!_ac)try{_ac=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}return _ac;}
-document.addEventListener('touchstart',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:true});
-document.addEventListener('click',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:true});
+document.addEventListener('touchstart',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:false});
+document.addEventListener('click',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:false});
+document.addEventListener('touchend',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:false});
 function playS(){try{const a=getAC();if(!a)return;if(a.state==='suspended')a.resume();const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.setValueAtTime(880,a.currentTime);o.frequency.setValueAtTime(1100,a.currentTime+.1);g.gain.setValueAtTime(.15,a.currentTime);g.gain.exponentialRampToValueAtTime(.01,a.currentTime+.4);o.start(a.currentTime);o.stop(a.currentTime+.4);}catch(e){console.log('Sound error:',e);}}
 function vib(){try{if(navigator.vibrate)navigator.vibrate([100,50,100]);}catch(e){}}
 function showN(name,text,pid){document.getElementById('nAv').textContent=(name||'?').substring(0,2).toUpperCase();document.getElementById('nNm').textContent=name;document.getElementById('nTx').textContent=text;lastNP=pid;document.getElementById('noti').classList.add('on');playS();vib();if(nfTm)clearTimeout(nfTm);nfTm=setTimeout(()=>document.getElementById('noti').classList.remove('on'),4000);}
