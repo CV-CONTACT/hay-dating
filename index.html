@@ -308,10 +308,10 @@ const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const sb=supabase.createClient(SB_URL,SB_KEY);
 
 let me=null,cards=[],ci=0,mats=[],cMid=null,cPid=null,cPP=null;
-let cIds=new Set(),cPoll=null,flt={g:'female',mn:18,mx:50};
+let cIds=new Set(),flt={g:'female',mn:18,mx:50};
 let sx=0,sy=0,dx=0,dy=0,drag=false,cc=null;
 let callOn=false,callSec=0,callInt=null,muted=false,isVid=false;
-let allMids=new Set(),nfTm=null,lastNP=null;
+let nfTm=null,lastNP=null;
 
 // AUTH
 function wErr(m){const e=document.getElementById('wE');e.textContent=m;e.style.display='block';}
@@ -336,20 +336,56 @@ function enter(){
   if(me.gender==='male')flt.g='female';else if(me.gender==='female')flt.g='male';
   document.querySelectorAll('.fc').forEach(c=>{c.classList.remove('on');if(c.textContent==='Женщин'&&flt.g==='female')c.classList.add('on');if(c.textContent==='Мужчин'&&flt.g==='male')c.classList.add('on');if(c.textContent==='Всех'&&flt.g==='all')c.classList.add('on');});
   updS();loadC();loadM();initRT();
-  setInterval(updS,30000);setInterval(loadM,5000);setInterval(pollN,3000);
+  updS(); // realtime handles everything now
 }
 async function updS(){if(me)try{await sb.from('profiles').update({last_seen:new Date().toISOString()}).eq('id',me.id);}catch(e){}}
 
 // REALTIME — like Gemini idea
 function initRT(){
-  sb.channel('hay-rt').on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},p=>{
-    const m=p.new;
-    if(m.match_id===cMid&&!cIds.has(m.id)){cIds.add(m.id);addMsg(m);}
-    if(m.sender_id!==me.id&&m.match_id!==cMid){
-      const mt=mats.find(x=>x.mid===m.match_id);
-      showN(mt?mt.p.name:'Кто-то',m.text,mt?mt.pid:null);
-    }
-  }).subscribe();
+  sb.channel('hay-all')
+    // NEW MESSAGES — instant delivery + notifications
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},p=>{
+      const m=p.new;
+      // If in this chat — show message
+      if(m.match_id===cMid&&!cIds.has(m.id)){
+        cIds.add(m.id);
+        if(m.sender_id!==me.id) addMsg(m); // don't duplicate own msgs
+      }
+      // If NOT in this chat and from someone else — notify
+      if(m.sender_id!==me.id&&m.match_id!==cMid){
+        const mt=mats.find(x=>x.mid===m.match_id);
+        showN(mt?mt.p.name:'Кто-то',m.text,mt?mt.pid:null);
+      }
+    })
+    // NEW MATCHES — reload match list
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'matches'},p=>{
+      const m=p.new;
+      if(m.user1===me.id||m.user2===me.id) loadM();
+    })
+    // NEW LIKES — check for mutual (someone liked us)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'likes'},p=>{
+      const l=p.new;
+      if(l.to_user===me.id){
+        // Someone liked us — refresh cards in case match happened
+        loadM();
+      }
+    })
+    // PROFILE UPDATES — online status changes
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'profiles'},p=>{
+      // If chat partner updated, refresh status
+      if(cPP&&p.new.id===cPP.id){
+        cPP=p.new;
+        const on=isOn(p.new.last_seen);
+        const st=document.getElementById('cSt');
+        if(st) st.textContent=on?'Онлайн':'Был(а) недавно';
+      }
+    })
+    .subscribe(status=>{
+      console.log('Realtime:',status);
+    });
+  
+  // Only update own last_seen every 30s (minimal polling)
+  setInterval(updS,30000);
 }
 
 // NAV
@@ -449,9 +485,9 @@ function openC(m){
   document.getElementById('mB').innerHTML='';cIds.clear();
   document.getElementById('chatS').classList.add('on');
   loadMsgs();
-  if(cPoll)clearInterval(cPoll);cPoll=setInterval(loadMsgs,2000);
+  // realtime handles new messages
 }
-function closeC(){document.getElementById('chatS').classList.remove('on');if(cPoll){clearInterval(cPoll);cPoll=null;}cMid=null;}
+function closeC(){document.getElementById('chatS').classList.remove('on');// realtime handles cleanupcMid=null;}
 async function loadMsgs(){
   if(!cMid)return;
   try{const{data:msgs}=await sb.from('messages').select().eq('match_id',cMid).order('id',{ascending:true}).limit(200);
@@ -499,7 +535,7 @@ function renderP(){
   }
 }
 function togEdit(){ed=!ed;renderP();}
-function upPh(inp){const f=inp.files[0];if(!f)return;toast('Загрузка...');const rd=new FileReader();rd.onload=function(e){const img=new Image();img.onload=function(){const cv=document.createElement('canvas');const mx=60;let w=img.width,h=img.height;if(w>h){h=Math.round(h*(mx/w));w=mx;}else{w=Math.round(w*(mx/h));h=mx;}cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);const d=cv.toDataURL('image/jpeg',.2);
+function upPh(inp){const f=inp.files[0];if(!f)return;toast('Загрузка...');const rd=new FileReader();rd.onload=function(e){const img=new Image();img.onload=function(){const cv=document.createElement('canvas');const mx=200;let w=img.width,h=img.height;if(w>h){h=Math.round(h*(mx/w));w=mx;}else{w=Math.round(w*(mx/h));h=mx;}cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);const d=cv.toDataURL('image/jpeg',.5);
   sb.from('profiles').update({photos:d}).eq('id',me.id).select().single().then(({data,error})=>{console.log('Photo upload:',d.length,'chars',error);if(data){me=data;ed=false;renderP();toast('Фото ✓');}else{toast(error?error.message:'Ошибка');console.error('Photo error:',error);}});};img.src=e.target.result;};rd.readAsDataURL(f);}
 async function saveP(){const d={name:document.getElementById('eN').value.trim(),age:parseInt(document.getElementById('eA').value)||me.age,city:document.getElementById('eC').value.trim(),bio:document.getElementById('eB').value.trim(),interests:document.getElementById('eI').value.trim()};
   const{data,error}=await sb.from('profiles').update(d).eq('id',me.id).select().single();if(data){me=data;ed=false;renderP();toast('Сохранено ✓');}else toast(error?error.message:'Ошибка');}
@@ -522,14 +558,7 @@ function playS(){try{const a=getAC();if(!a)return;if(a.state==='suspended')a.res
 function vib(){try{if(navigator.vibrate)navigator.vibrate([100,50,100]);}catch(e){}}
 function showN(name,text,pid){document.getElementById('nAv').textContent=(name||'?').substring(0,2).toUpperCase();document.getElementById('nNm').textContent=name;document.getElementById('nTx').textContent=text;lastNP=pid;document.getElementById('noti').classList.add('on');playS();vib();if(nfTm)clearTimeout(nfTm);nfTm=setTimeout(()=>document.getElementById('noti').classList.remove('on'),4000);}
 function nClick(){document.getElementById('noti').classList.remove('on');if(lastNP){const m=mats.find(x=>x.pid===lastNP);if(m){openC(m);return;}}goT('chat');}
-async function pollN(){
-  if(!me||!mats.length)return;
-  try{const mids=mats.map(m=>m.mid);if(!mids.length)return;
-    const{data:msgs}=await sb.from('messages').select().in('match_id',mids).order('id',{ascending:false}).limit(50);
-    if(!msgs)return;msgs.forEach(m=>{if(allMids.has(m.id))return;const isNew=allMids.size>0;allMids.add(m.id);
-      if(isNew&&m.sender_id!==me.id&&m.match_id!==cMid){const mt=mats.find(x=>x.mid===m.match_id);showN(mt?mt.p.name:'Кто-то',m.text,mt?mt.pid:null);}});
-  }catch(e){}
-}
+// pollN removed — using realtime
 
 // UTIL
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
