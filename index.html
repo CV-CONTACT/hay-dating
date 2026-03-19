@@ -558,7 +558,6 @@ function playS(){try{const a=getAC();if(!a)return;if(a.state==='suspended')a.res
 function vib(){try{if(navigator.vibrate)navigator.vibrate([100,50,100]);}catch(e){}}
 function showN(name,text,pid){document.getElementById('nAv').textContent=(name||'?').substring(0,2).toUpperCase();document.getElementById('nNm').textContent=name;document.getElementById('nTx').textContent=text;lastNP=pid;document.getElementById('noti').classList.add('on');playS();vib();if(nfTm)clearTimeout(nfTm);nfTm=setTimeout(()=>document.getElementById('noti').classList.remove('on'),4000);}
 function nClick(){document.getElementById('noti').classList.remove('on');if(lastNP){const m=mats.find(x=>x.pid===lastNP);if(m){openC(m);return;}}goT('chat');}
-// pollN removed — using realtime
 
 // UTIL
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
