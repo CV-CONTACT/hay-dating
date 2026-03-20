@@ -336,7 +336,7 @@ function enter(){
   if(me.gender==='male')flt.g='female';else if(me.gender==='female')flt.g='male';
   document.querySelectorAll('.fc').forEach(c=>{c.classList.remove('on');if(c.textContent==='Женщин'&&flt.g==='female')c.classList.add('on');if(c.textContent==='Мужчин'&&flt.g==='male')c.classList.add('on');if(c.textContent==='Всех'&&flt.g==='all')c.classList.add('on');});
   updS();loadC();loadM();initRT();
-  updS(); // realtime handles everything now
+  updS();setInterval(updS,30000);setInterval(loadM,8000); // realtime + polling backup
 }
 async function updS(){if(me)try{await sb.from('profiles').update({last_seen:new Date().toISOString()}).eq('id',me.id);}catch(e){}}
 
@@ -485,9 +485,11 @@ function openC(m){
   document.getElementById('mB').innerHTML='';cIds.clear();
   document.getElementById('chatS').classList.add('on');
   loadMsgs();
-  // realtime handles new messages
+  // polling fallback if realtime fails
+  if(window._chatPoll)clearInterval(window._chatPoll);
+  window._chatPoll=setInterval(loadMsgs,2500);
 }
-function closeC(){document.getElementById('chatS').classList.remove('on');cMid=null;}
+function closeC(){document.getElementById('chatS').classList.remove('on');if(window._chatPoll){clearInterval(window._chatPoll);window._chatPoll=null;}cMid=null;}
 async function loadMsgs(){
   if(!cMid)return;
   try{const{data:msgs}=await sb.from('messages').select().eq('match_id',cMid).order('id',{ascending:true}).limit(200);
