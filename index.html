@@ -306,29 +306,68 @@ var callOn=false,callSec=0,callInt=null,muted=false,isVid=false;
 var nfTm=null,lastNP=null;
 var _ac=null;
 
-// SOUND — iOS unlock
-function getAC(){if(!_ac){try{_ac=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return _ac;}
+// SOUND SYSTEM — works on iOS + Android
+function getAC(){
+  if(!_ac){try{_ac=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+  if(_ac&&_ac.state==='suspended'){try{_ac.resume();}catch(e){}}
+  return _ac;
+}
 function unlockAudio(){
   var a=getAC();if(!a)return;
-  if(a.state==='suspended')a.resume();
   try{var b=a.createBuffer(1,1,22050);var s=a.createBufferSource();s.buffer=b;s.connect(a.destination);s.start(0);}catch(e){}
 }
 document.addEventListener('touchstart',unlockAudio,false);
 document.addEventListener('touchend',unlockAudio,false);
 document.addEventListener('click',unlockAudio,false);
 
+function playNote(freq,start,dur,vol,type){
+  var a=getAC();if(!a)return;
+  try{
+    var o=a.createOscillator();
+    var g=a.createGain();
+    o.type=type||'sine';
+    o.connect(g);g.connect(a.destination);
+    o.frequency.setValueAtTime(freq,a.currentTime+start);
+    g.gain.setValueAtTime(vol||0.15,a.currentTime+start);
+    g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+start+dur);
+    o.start(a.currentTime+start);
+    o.stop(a.currentTime+start+dur);
+  }catch(e){}
+}
+
 function playMsg(){
-  try{var a=getAC();if(!a||a.state==='suspended')return;var n=a.currentTime;
-  var o1=a.createOscillator(),g1=a.createGain();o1.type='sine';o1.connect(g1);g1.connect(a.destination);o1.frequency.value=800;g1.gain.setValueAtTime(.2,n);g1.gain.exponentialRampToValueAtTime(.01,n+.12);o1.start(n);o1.stop(n+.12);
-  var o2=a.createOscillator(),g2=a.createGain();o2.type='sine';o2.connect(g2);g2.connect(a.destination);o2.frequency.value=1200;g2.gain.setValueAtTime(.2,n+.1);g2.gain.exponentialRampToValueAtTime(.01,n+.25);o2.start(n+.1);o2.stop(n+.25);
-  }catch(e){}
+  // Мягкий "дин-дон" — два чистых тона
+  playNote(880,0,0.15,0.18,'sine');
+  playNote(1320,0.12,0.2,0.15,'sine');
 }
+
 function playMatch(){
-  try{var a=getAC();if(!a||a.state==='suspended')return;var n=a.currentTime;
-  [523,659,784,1047].forEach(function(f,i){var o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=f;g.gain.setValueAtTime(.15,n+i*.12);g.gain.exponentialRampToValueAtTime(.01,n+i*.12+.25);o.start(n+i*.12);o.stop(n+i*.12+.25);});
-  }catch(e){}
+  // Праздничная мелодия — арпеджио C мажор вверх + финальный аккорд
+  playNote(523,0,0.2,0.18,'sine');      // C
+  playNote(659,0.15,0.2,0.18,'sine');   // E  
+  playNote(784,0.30,0.2,0.18,'sine');   // G
+  playNote(1047,0.45,0.35,0.2,'sine');  // C высокий
+  // Аккорд на финале
+  playNote(523,0.7,0.4,0.1,'triangle');
+  playNote(659,0.7,0.4,0.1,'triangle');
+  playNote(784,0.7,0.4,0.1,'triangle');
+  playNote(1047,0.7,0.4,0.12,'triangle');
 }
-function vib(){try{if(navigator.vibrate)navigator.vibrate([80,40,80]);}catch(e){}}
+
+function playLike(){
+  // Короткий "пинг" при лайке
+  playNote(660,0,0.1,0.12,'sine');
+  playNote(880,0.08,0.15,0.1,'sine');
+}
+
+function playNope(){
+  // Низкий "бум" при дизлайке
+  playNote(220,0,0.12,0.1,'sine');
+  playNote(180,0.08,0.15,0.08,'sine');
+}
+
+function vib(){try{if(navigator.vibrate)navigator.vibrate([60,30,60]);}catch(e){}}
+function vibMatch(){try{if(navigator.vibrate)navigator.vibrate([100,50,100,50,200]);}catch(e){}}
 
 // AUTH
 function wErr(m){var e=document.getElementById('wE');e.textContent=m;e.style.display='block';}
@@ -424,15 +463,15 @@ function finSw(){drag=false;if(!cc)return;if(dx>90)doSw('right');else if(dx<-90)
 function swA(d){var w=document.getElementById('cW');var c=w.querySelector('.cd[style*="z-index: 2"]')||w.querySelector('.cd:last-child');if(!c)return;cc=c;doSw(d);}
 async function doSw(d){
   if(!cc||ci>=cards.length)return;var card=cc,p=cards[ci];
-  if(d==='right'||d==='up'){card.classList.add('er');
+  if(d==='right'||d==='up'){card.classList.add('er');playLike();
     try{await sb.from('likes').insert({from_user:me.id,to_user:p.id});
       var r=await sb.from('likes').select().eq('from_user',p.id).eq('to_user',me.id).maybeSingle();
       if(r.data){await sb.from('matches').insert({user1:me.id,user2:p.id});showMO(p.name);loadM();}
     }catch(e){}
-  }else card.classList.add('el');
+  }else{card.classList.add('el');playNope();}
   setTimeout(function(){card.remove();ci++;renderC();},400);cc=null;
 }
-function showMO(n){document.getElementById('mOS').textContent=n+' тоже лайкнул(а)!';document.getElementById('mO').classList.add('on');firePt();playMatch();vib();}
+function showMO(n){document.getElementById('mOS').textContent=n+' тоже лайкнул(а)!';document.getElementById('mO').classList.add('on');firePt();playMatch();vibMatch();}
 function clM(){document.getElementById('mO').classList.remove('on');goT('c');}
 function firePt(){var cv=document.getElementById('ptc');cv.width=innerWidth;cv.height=innerHeight;var ctx=cv.getContext('2d');var cl=['#ff4466','#ff6b81','#7c5cfc','#ffb020','#00d48a','#3b82f6'];var ps=[];for(var i=0;i<60;i++)ps.push({x:cv.width/2,y:cv.height/2,vx:(Math.random()-.5)*12,vy:(Math.random()-.5)*12-4,r:Math.random()*4+2,c:cl[Math.floor(Math.random()*cl.length)],l:1});(function d(){ctx.clearRect(0,0,cv.width,cv.height);ps=ps.filter(function(p){return p.l>0;});ps.forEach(function(p){p.x+=p.vx;p.y+=p.vy;p.vy+=.15;p.l-=.016;ctx.globalAlpha=p.l;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();});if(ps.length)requestAnimationFrame(d);})();}
 
