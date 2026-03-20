@@ -1,0 +1,14 @@
+{
+  "name": "Hay Dating",
+  "short_name": "Hay Dating",
+  "description": "Знакомства по-армянски",
+  "start_url": "/hay-dating/",
+  "display": "standalone",
+  "background_color": "#1a1520",
+  "theme_color": "#ff5c6a",
+  "orientation": "portrait",
+  "icons": [
+    {"src": "/hay-dating/icon-192.png","sizes": "192x192","type": "image/png"},
+    {"src": "/hay-dating/icon-512.png","sizes": "512x512","type": "image/png"}
+  ]
+}
