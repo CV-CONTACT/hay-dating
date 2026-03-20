@@ -125,7 +125,7 @@ input,textarea,select{font-family:inherit}
 .chtm{font-size:11px;color:var(--txt3)}
 
 /* CHAT SCREEN */
-#chatS{display:none;position:fixed;inset:0;z-index:60;flex-direction:column;background:var(--bg)}
+#chatS{display:none;position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100dvh;z-index:999;flex-direction:column;background:var(--bg)}
 #chatS.on{display:flex}
 .cthdr{padding:10px 14px;background:var(--card);border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:10px;flex-shrink:0}
 .ctback{font-size:20px;padding:6px;color:var(--txt2)}
@@ -135,7 +135,8 @@ input,textarea,select{font-family:inherit}
 .ctb{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--card2);border:1px solid var(--brd)}
 .msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:5px}
 .msgs::-webkit-scrollbar{width:0}
-.mr{display:flex;align-items:flex-end;animation:ms .3s ease}
+.mr{display:flex;align-items:flex-end;gap:8px;animation:ms .3s ease}
+.msg-av{width:28px;height:28px;min-width:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--txt3);flex-shrink:0;white-space:nowrap;overflow:hidden;background-size:cover;background-position:center;margin-bottom:16px}
 .mr.me{flex-direction:row-reverse}
 @keyframes ms{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .bb{max-width:78%;min-width:60px;padding:10px 14px 6px;border-radius:18px;font-size:14px;line-height:1.55;overflow-wrap:break-word;word-break:normal}
@@ -512,10 +513,20 @@ async function loadMsgs(){
   }catch(e){}
 }
 function addMsg(m){
-  const mine=m.sender_id===me.id,row=document.createElement('div');row.className=`mr ${mine?'me':''}`;
-  const t=m.created_at?new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
-  row.innerHTML=`<div class="bb ${mine?'me':'th'}">${esc(m.text)}<div class="bt">${t}</div></div>`;
-  const box=document.getElementById('mB');box.appendChild(row);box.scrollTop=box.scrollHeight;
+  var mine=m.sender_id===me.id;
+  var row=document.createElement('div');
+  row.className='mr'+(mine?' me':'');
+  var t=m.created_at?new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+  if(mine){
+    row.innerHTML='<div class="bb me">'+esc(m.text)+'<div class="bt">'+t+'</div></div>';
+  }else{
+    var ini=cPP?(cPP.name||'?').substring(0,2).toUpperCase():'?';
+    var ph=cPP&&cPP.photos?cPP.photos:'';
+    var avStyle=ph?'background-image:url('+ph+');background-size:cover;background-position:center;':'';
+    var avContent=ph?'':ini;
+    row.innerHTML='<div class="msg-av" style="'+avStyle+'">'+avContent+'</div><div class="bb th">'+esc(m.text)+'<div class="bt">'+t+'</div></div>';
+  }
+  var box=document.getElementById('mB');box.appendChild(row);box.scrollTop=box.scrollHeight;
 }
 async function cSend(){const inp=document.getElementById('cI'),txt=inp.value.trim();if(!txt||!cMid)return;inp.value='';inp.style.height='auto';
   // Show immediately
@@ -590,7 +601,16 @@ function aFlt(){document.getElementById('fM').classList.remove('on');loadC();}
 // NOTIFY
 let _ac=null;
 function getAC(){if(!_ac)try{_ac=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}return _ac;}
-document.addEventListener('touchstart',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:false});
+document.addEventListener('touchstart',function(){
+  var a=getAC();
+  if(a&&a.state==='suspended')a.resume();
+  // Play silent buffer to unlock iOS audio
+  try{
+    var buf=a.createBuffer(1,1,22050);
+    var src=a.createBufferSource();
+    src.buffer=buf;src.connect(a.destination);src.start(0);
+  }catch(e){}
+},{once:false});
 document.addEventListener('click',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:false});
 document.addEventListener('touchend',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:false});
 function playS(){
