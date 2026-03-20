@@ -487,7 +487,7 @@ function openC(m){
   loadMsgs();
   // realtime handles new messages
 }
-function closeC(){document.getElementById('chatS').classList.remove('on');// realtime handles cleanupcMid=null;}
+function closeC(){document.getElementById('chatS').classList.remove('on');cMid=null;}
 async function loadMsgs(){
   if(!cMid)return;
   try{const{data:msgs}=await sb.from('messages').select().eq('match_id',cMid).order('id',{ascending:true}).limit(200);
@@ -535,8 +535,32 @@ function renderP(){
   }
 }
 function togEdit(){ed=!ed;renderP();}
-function upPh(inp){const f=inp.files[0];if(!f)return;toast('Загрузка...');const rd=new FileReader();rd.onload=function(e){const img=new Image();img.onload=function(){const cv=document.createElement('canvas');const mx=200;let w=img.width,h=img.height;if(w>h){h=Math.round(h*(mx/w));w=mx;}else{w=Math.round(w*(mx/h));h=mx;}cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);const d=cv.toDataURL('image/jpeg',.5);
-  sb.from('profiles').update({photos:d}).eq('id',me.id).select().single().then(({data,error})=>{console.log('Photo upload:',d.length,'chars',error);if(data){me=data;ed=false;renderP();toast('Фото ✓');}else{toast(error?error.message:'Ошибка');console.error('Photo error:',error);}});};img.src=e.target.result;};rd.readAsDataURL(f);}
+function upPh(inp){
+  var f=inp.files[0];
+  if(!f)return;
+  toast('Загрузка...');
+  var rd=new FileReader();
+  rd.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var cv=document.createElement('canvas');
+      var mx=200;
+      var w=img.width,h=img.height;
+      if(w>h){h=Math.round(h*(mx/w));w=mx;}
+      else{w=Math.round(w*(mx/h));h=mx;}
+      cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      var d=cv.toDataURL('image/jpeg',0.5);
+      console.log('Photo size:',d.length);
+      sb.from('profiles').update({photos:d}).eq('id',me.id).select().single().then(function(res){
+        if(res.data){me=res.data;ed=false;renderP();toast('Фото ✓');}
+        else{toast(res.error?res.error.message:'Ошибка');console.error(res.error);}
+      });
+    };
+    img.src=e.target.result;
+  };
+  rd.readAsDataURL(f);
+}
 async function saveP(){const d={name:document.getElementById('eN').value.trim(),age:parseInt(document.getElementById('eA').value)||me.age,city:document.getElementById('eC').value.trim(),bio:document.getElementById('eB').value.trim(),interests:document.getElementById('eI').value.trim()};
   const{data,error}=await sb.from('profiles').update(d).eq('id',me.id).select().single();if(data){me=data;ed=false;renderP();toast('Сохранено ✓');}else toast(error?error.message:'Ошибка');}
 function doOut(){localStorage.removeItem('huid');location.reload();}
