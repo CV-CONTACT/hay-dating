@@ -278,7 +278,7 @@ input,textarea,select{font-family:inherit}
     <button class="ctback" onclick="closeC()">←</button>
     <div class="ctav" id="cAv"></div>
     <div class="ctinf"><div class="ctnm" id="cNm">—</div><div class="ctst" id="cSt">Онлайн</div></div>
-    <div class="ctbtns"><button class="ctb" onclick="doCall(0)">📞</button><button class="ctb" onclick="doCall(1)">🎥</button></div>
+    <div class="ctbtns"><button class="ctb" onclick="doCall(0)">📞</button><button class="ctb" onclick="doCall(1)">🎥</button><button class="ctb" style="color:var(--p)" onclick="doUnmatch()">🗑</button></div>
   </div>
   <div class="msgs" id="mB"></div>
   <div class="ctinpw"><div class="ctinpr"><textarea class="ctinp" id="cI" placeholder="Сообщение..." rows="1" oninput="arI(this)" onkeydown="cK(event)"></textarea><button class="ctsend" onclick="cSend()">➤</button></div></div>
@@ -446,7 +446,21 @@ async function doSw(d){
   }else card.classList.add('el');
   setTimeout(()=>{card.remove();ci++;renderC();},400);cc=null;
 }
-function showMO(n){document.getElementById('mOS').textContent=`${n} тоже лайкнул(а) тебя!`;document.getElementById('mO').classList.add('on');firePt();playS();vib();}
+function showMO(n){document.getElementById('mOS').textContent=n+' тоже лайкнул(а) тебя!';document.getElementById('mO').classList.add('on');firePt();playMatch();vib();}
+function playMatch(){
+  try{
+    var a=getAC();if(!a)return;if(a.state==='suspended')a.resume();
+    var now=a.currentTime;
+    [523,659,784,1047].forEach(function(freq,i){
+      var o=a.createOscillator(),g=a.createGain();
+      o.connect(g);g.connect(a.destination);
+      o.frequency.value=freq;
+      g.gain.setValueAtTime(0.12,now+i*0.15);
+      g.gain.exponentialRampToValueAtTime(0.01,now+i*0.15+0.3);
+      o.start(now+i*0.15);o.stop(now+i*0.15+0.3);
+    });
+  }catch(e){}
+}
 function clMatch(){document.getElementById('mO').classList.remove('on');goT('chat');}
 function firePt(){const cv=document.getElementById('ptc');cv.width=innerWidth;cv.height=innerHeight;const ctx=cv.getContext('2d');const cl=['#ff5c6a','#ff7e7e','#e8557a','#8b6cc1','#f0a030','#2dba8e'];let ps=[];for(let i=0;i<70;i++)ps.push({x:cv.width/2,y:cv.height/2,vx:(Math.random()-.5)*12,vy:(Math.random()-.5)*12-4,r:Math.random()*5+2,c:cl[Math.floor(Math.random()*cl.length)],l:1});(function d(){ctx.clearRect(0,0,cv.width,cv.height);ps=ps.filter(p=>p.l>0);ps.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.15;p.l-=.015;ctx.globalAlpha=p.l;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();});if(ps.length)requestAnimationFrame(d);})();}
 
@@ -537,35 +551,34 @@ function renderP(){
   }
 }
 function togEdit(){ed=!ed;renderP();}
-function upPh(inp){
+async function upPh(inp){
   var f=inp.files[0];
   if(!f)return;
-  toast('Загрузка...');
-  var rd=new FileReader();
-  rd.onload=function(e){
-    var img=new Image();
-    img.onload=function(){
-      var cv=document.createElement('canvas');
-      var mx=200;
-      var w=img.width,h=img.height;
-      if(w>h){h=Math.round(h*(mx/w));w=mx;}
-      else{w=Math.round(w*(mx/h));h=mx;}
-      cv.width=w;cv.height=h;
-      cv.getContext('2d').drawImage(img,0,0,w,h);
-      var d=cv.toDataURL('image/jpeg',0.5);
-      console.log('Photo size:',d.length);
-      sb.from('profiles').update({photos:d}).eq('id',me.id).select().single().then(function(res){
-        if(res.data){me=res.data;ed=false;renderP();toast('Фото ✓');}
-        else{toast(res.error?res.error.message:'Ошибка');console.error(res.error);}
-      });
-    };
-    img.src=e.target.result;
-  };
-  rd.readAsDataURL(f);
+  toast('Загрузка фото...');
+  try{
+    var fname=me.id+'_'+Date.now()+'.jpg';
+    var{error:ue}=await sb.storage.from('photos').upload(fname,f,{upsert:true});
+    if(ue){toast('Ошибка: '+ue.message);console.error(ue);return;}
+    var{data:urlData}=sb.storage.from('photos').getPublicUrl(fname);
+    var url=urlData.publicUrl;
+    var{data,error}=await sb.from('profiles').update({photos:url}).eq('id',me.id).select().single();
+    if(data){me=data;ed=false;renderP();toast('Фото обновлено ✓');}
+    else{toast(error?error.message:'Ошибка');console.error(error);}
+  }catch(e){toast('Ошибка загрузки');console.error(e);}
 }
 async function saveP(){const d={name:document.getElementById('eN').value.trim(),age:parseInt(document.getElementById('eA').value)||me.age,city:document.getElementById('eC').value.trim(),bio:document.getElementById('eB').value.trim(),interests:document.getElementById('eI').value.trim()};
   const{data,error}=await sb.from('profiles').update(d).eq('id',me.id).select().single();if(data){me=data;ed=false;renderP();toast('Сохранено ✓');}else toast(error?error.message:'Ошибка');}
 function doOut(){localStorage.removeItem('huid');location.reload();}
+
+async function doUnmatch(){
+  if(!cMid)return;
+  if(!confirm('Удалить чат и отменить совпадение?'))return;
+  try{
+    await sb.from('messages').delete().eq('match_id',cMid);
+    await sb.from('matches').delete().eq('id',cMid);
+    closeC();loadM();toast('Чат удалён');
+  }catch(e){toast('Ошибка');console.error(e);}
+}
 
 // FILTER
 function openFlt(){document.getElementById('fM').classList.add('on');}
@@ -580,7 +593,24 @@ function getAC(){if(!_ac)try{_ac=new(window.AudioContext||window.webkitAudioCont
 document.addEventListener('touchstart',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:false});
 document.addEventListener('click',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:false});
 document.addEventListener('touchend',function(){const a=getAC();if(a&&a.state==='suspended')a.resume();},{once:false});
-function playS(){try{const a=getAC();if(!a)return;if(a.state==='suspended')a.resume();const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.setValueAtTime(880,a.currentTime);o.frequency.setValueAtTime(1100,a.currentTime+.1);g.gain.setValueAtTime(.15,a.currentTime);g.gain.exponentialRampToValueAtTime(.01,a.currentTime+.4);o.start(a.currentTime);o.stop(a.currentTime+.4);}catch(e){console.log('Sound error:',e);}}
+function playS(){
+  try{
+    var a=getAC();if(!a)return;if(a.state==='suspended')a.resume();
+    var now=a.currentTime;
+    var o1=a.createOscillator(),g1=a.createGain();
+    o1.type='sine';o1.connect(g1);g1.connect(a.destination);
+    o1.frequency.setValueAtTime(800,now);
+    g1.gain.setValueAtTime(0.2,now);
+    g1.gain.exponentialRampToValueAtTime(0.01,now+0.15);
+    o1.start(now);o1.stop(now+0.15);
+    var o2=a.createOscillator(),g2=a.createGain();
+    o2.type='sine';o2.connect(g2);g2.connect(a.destination);
+    o2.frequency.setValueAtTime(1200,now+0.12);
+    g2.gain.setValueAtTime(0.2,now+0.12);
+    g2.gain.exponentialRampToValueAtTime(0.01,now+0.3);
+    o2.start(now+0.12);o2.stop(now+0.3);
+  }catch(e){console.log('Sound err:',e);}
+}
 function vib(){try{if(navigator.vibrate)navigator.vibrate([100,50,100]);}catch(e){}}
 function showN(name,text,pid){document.getElementById('nAv').textContent=(name||'?').substring(0,2).toUpperCase();document.getElementById('nNm').textContent=name;document.getElementById('nTx').textContent=text;lastNP=pid;document.getElementById('noti').classList.add('on');playS();vib();if(nfTm)clearTimeout(nfTm);nfTm=setTimeout(()=>document.getElementById('noti').classList.remove('on'),4000);}
 function nClick(){document.getElementById('noti').classList.remove('on');if(lastNP){const m=mats.find(x=>x.pid===lastNP);if(m){openC(m);return;}}goT('chat');}
