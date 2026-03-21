@@ -153,7 +153,7 @@ input,textarea,select{font-family:inherit;color:var(--t1)}
 .mgs::-webkit-scrollbar{width:0}
 .mr{display:flex;align-items:flex-end;gap:6px;animation:mA .25s ease}.mr.me{flex-direction:row-reverse}
 @keyframes mA{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.m-av{width:26px;height:26px;min-width:26px;border-radius:50%;background:var(--s1);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--t3);flex-shrink:0;overflow:hidden;background-size:cover;background-position:center;margin-bottom:14px}
+.m-av{width:34px;height:34px;min-width:34px;border-radius:50%;background:var(--s1);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--t3);flex-shrink:0;overflow:hidden;background-size:cover;background-position:center;margin-bottom:14px;cursor:pointer}
 .bb{max-width:75%;min-width:50px;padding:9px 13px 4px;border-radius:18px;font-size:14px;line-height:1.5;overflow-wrap:break-word}
 .bb.th{background:var(--bg3);color:#fff;border-bottom-left-radius:4px}
 .bb.me{background:var(--grad);color:#fff;border-bottom-right-radius:4px}
@@ -598,7 +598,7 @@ function openC(m){
 }
 function closeC(){document.getElementById('CS').classList.remove('on');if(window._cp){clearInterval(window._cp);window._cp=null;}cMid=null;}
 async function loadMsgs(){if(!cMid)return;try{var r=await sb.from('messages').select().eq('match_id',cMid).order('id',{ascending:true}).limit(200);if(!r.data)return;var box=document.getElementById('mB');var wasBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80;var added=0;r.data.forEach(function(m){if(cIds.has(m.id))return;cIds.add(m.id);addMsg(m,true);added++;});if(added>0&&wasBottom)box.scrollTop=box.scrollHeight;}catch(e){}}
-function isImgUrl(s){if(!s)return false;if(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(s))return true;if(/supabase\.co\/storage\/v1\/object/i.test(s))return true;return false;}
+function isImgUrl(s){if(!s)return false;if(/^data:image\//i.test(s))return true;if(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(s))return true;if(/supabase\.co\/storage\/v1\/object/i.test(s))return true;return false;}
 function addMsg(m,noScroll){
   var mine=m.sender_id===me.id;var row=document.createElement('div');row.className='mr'+(mine?' me':'');
   var t=m.created_at?new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
@@ -606,9 +606,9 @@ function addMsg(m,noScroll){
   var imgCls=isImg?' img-msg':'';
   var contentH=isImg?'<img class="chat-img" src="'+esc(txt)+'" onclick="zoomUrl(\''+esc(txt)+'\')">':esc(txt);
   if(mine){var myIni=(me.name||'?').substring(0,2).toUpperCase();var myPh=getMainPhoto(me);var myAvS=myPh?'background-image:url('+myPh+');background-size:cover;background-position:center':'';
-    row.innerHTML='<div class="m-av" style="'+myAvS+'">'+(myPh?'':myIni)+'</div><div class="bb me'+imgCls+'">'+contentH+'<div class="bt">'+t+'</div></div>';
+    row.innerHTML='<div class="m-av" style="'+myAvS+'" onclick="goT(\'p\');closeC()">'+(myPh?'':myIni)+'</div><div class="bb me'+imgCls+'">'+contentH+'<div class="bt">'+t+'</div></div>';
   }else{var ini=cPP?(cPP.name||'?').substring(0,2).toUpperCase():'?';var ph=cPP?getMainPhoto(cPP):'';var avS=ph?'background-image:url('+ph+');background-size:cover;background-position:center':'';
-    row.innerHTML='<div class="m-av" style="'+avS+'">'+(ph?'':ini)+'</div><div class="bb th'+imgCls+'">'+contentH+'<div class="bt">'+t+'</div></div>';
+    row.innerHTML='<div class="m-av" style="'+avS+'" onclick="openPP()">'+(ph?'':ini)+'</div><div class="bb th'+imgCls+'">'+contentH+'<div class="bt">'+t+'</div></div>';
   }
   var box=document.getElementById('mB');box.appendChild(row);if(!noScroll)box.scrollTop=box.scrollHeight;
 }
@@ -660,31 +660,40 @@ async function cSendAll(){
   if(!hasPhotos&&!txt)return;
   if(hasPhotos){
     var cnt=_chatPhotos.length;
-    toast('Загрузка '+cnt+' фото...');
+    toast('Отправка '+cnt+' фото...');
     var photos=_chatPhotos.slice();
     clearChatPh();
-    // Upload ALL photos in parallel
+    // Show photos immediately as local previews (optimistic UI)
+    var localUrls=[];
+    for(var k=0;k<photos.length;k++){
+      localUrls.push(photos[k].dataUrl);
+      var fkL=Date.now()+k+1000;cIds.add(fkL);
+      addMsg({sender_id:me.id,text:photos[k].dataUrl,created_at:new Date().toISOString()});
+    }
+    // Upload all photos in parallel
     var uploadPromises=[];
     for(var i=0;i<photos.length;i++){
       (function(photo,idx){
         var fn='chat_'+me.id+'_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).substr(2,4)+'.jpg';
-        var p=sb.storage.from('photos').upload(fn,photo.file,{upsert:true}).then(function(r){
-          if(r.error){console.error('Upload error',r.error);return null;}
-          var pub=sb.storage.from('photos').getPublicUrl(fn);
-          return pub.data.publicUrl;
-        }).catch(function(e){console.error('Upload catch',e);return null;});
-        uploadPromises.push(p);
-      })(_chatPhotos.length?photos[i]:photos[i],i);
+        uploadPromises.push(
+          sb.storage.from('photos').upload(fn,photo.file,{upsert:true}).then(function(r){
+            if(r.error)return null;
+            return sb.storage.from('photos').getPublicUrl(fn).data.publicUrl;
+          }).catch(function(){return null;})
+        );
+      })(photos[i],i);
     }
     var urls=await Promise.all(uploadPromises);
-    var goodUrls=urls.filter(function(u){return u;});
-    // Send messages for each uploaded photo
-    for(var j=0;j<goodUrls.length;j++){
-      var fk=Date.now()+j;cIds.add(fk);
-      addMsg({sender_id:me.id,text:goodUrls[j],created_at:new Date().toISOString()});
-      try{await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:goodUrls[j]});}catch(e){}
+    // Insert all messages into DB in parallel
+    var insertPromises=[];
+    for(var j=0;j<urls.length;j++){
+      if(!urls[j])continue;
+      insertPromises.push(
+        sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:urls[j]}).catch(function(){})
+      );
     }
-    if(!goodUrls.length&&cnt>0){toast('Ошибка загрузки');return;}
+    await Promise.all(insertPromises);
+    if(!urls.filter(Boolean).length&&cnt>0){toast('Ошибка загрузки');return;}
   }
   if(txt){
     inp.value='';inp.style.height='auto';
