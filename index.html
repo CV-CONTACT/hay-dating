@@ -663,34 +663,38 @@ async function cSendAll(){
     toast('Отправка '+cnt+' фото...');
     var photos=_chatPhotos.slice();
     clearChatPh();
-    // Step 1: Upload all files in parallel
+    // Generate unique filenames first
+    var ts=Date.now();
     var fns=[];
-    var uploadPromises=[];
     for(var i=0;i<photos.length;i++){
-      var fn='chat_'+me.id+'_'+Date.now()+''+i+''+Math.random().toString(36).substr(2,4)+'.jpg';
-      fns.push(fn);
-      uploadPromises.push(sb.storage.from('photos').upload(fn,photos[i].file,{upsert:true}));
+      fns.push('c_'+me.id+'_'+ts+'_'+i+'_'+(Math.random()*9999|0)+'.jpg');
     }
-    var results=await Promise.all(uploadPromises.map(function(p){return p.catch(function(){return{error:true}});}));
-    // Step 2: Get URLs and insert messages in parallel
-    var insertPromises=[];
-    for(var j=0;j<results.length;j++){
-      if(results[j].error)continue;
-      var url=sb.storage.from('photos').getPublicUrl(fns[j]).data.publicUrl;
-      var fk=Date.now()+j;cIds.add(fk);
-      addMsg({sender_id:me.id,text:url,created_at:new Date().toISOString()});
-      insertPromises.push(sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:url}));
+    // Upload one by one (reliable) but show progress
+    var sentCount=0;
+    for(var u=0;u<photos.length;u++){
+      try{
+        var upRes=await sb.storage.from('photos').upload(fns[u],photos[u].file,{upsert:true});
+        if(upRes.error){console.log('Upload err:',upRes.error.message);continue;}
+        var pubUrl=sb.storage.from('photos').getPublicUrl(fns[u]).data.publicUrl;
+        var insRes=await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:pubUrl});
+        if(insRes.error){console.log('Insert err:',insRes.error.message);continue;}
+        var fk=ts+u;cIds.add(fk);
+        addMsg({sender_id:me.id,text:pubUrl,created_at:new Date().toISOString()});
+        sentCount++;
+      }catch(e){console.log('Send photo err:',e);}
     }
-    await Promise.all(insertPromises.map(function(p){return p.catch(function(){});}));
-    if(!insertPromises.length&&cnt>0){toast('Ошибка загрузки');return;}
+    if(!sentCount&&cnt>0){toast('Ошибка отправки');return;}
+    toast(sentCount+' фото отправлено ✓');
   }
   if(txt){
     inp.value='';inp.style.height='auto';
-    var fk2=Date.now();cIds.add(fk2);
     addMsg({sender_id:me.id,text:txt,created_at:new Date().toISOString()});
-    try{await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:txt});}catch(e){}
+    var fk2=Date.now();cIds.add(fk2);
+    try{
+      var r=await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:txt});
+      if(r.error)console.log('Text insert err:',r.error.message);
+    }catch(e){toast('Ошибка');}
   }
-  toast('Отправлено ✓');
 }
 function cK(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cSendAll();}}
 function arI(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
