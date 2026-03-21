@@ -598,7 +598,7 @@ function openC(m){
 }
 function closeC(){document.getElementById('CS').classList.remove('on');if(window._cp){clearInterval(window._cp);window._cp=null;}cMid=null;}
 async function loadMsgs(){if(!cMid)return;try{var r=await sb.from('messages').select().eq('match_id',cMid).order('id',{ascending:true}).limit(200);if(!r.data)return;var box=document.getElementById('mB');var wasBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80;var added=0;r.data.forEach(function(m){if(cIds.has(m.id))return;cIds.add(m.id);addMsg(m,true);added++;});if(added>0&&wasBottom)box.scrollTop=box.scrollHeight;}catch(e){}}
-function isImgUrl(s){if(!s)return false;if(/^data:image\//i.test(s))return true;if(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(s))return true;if(/supabase\.co\/storage\/v1\/object/i.test(s))return true;return false;}
+function isImgUrl(s){if(!s)return false;if(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(s))return true;if(/supabase\.co\/storage/i.test(s))return true;return false;}
 function addMsg(m,noScroll){
   var mine=m.sender_id===me.id;var row=document.createElement('div');row.className='mr'+(mine?' me':'');
   var t=m.created_at?new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
@@ -663,37 +663,26 @@ async function cSendAll(){
     toast('Отправка '+cnt+' фото...');
     var photos=_chatPhotos.slice();
     clearChatPh();
-    // Show photos immediately as local previews (optimistic UI)
-    var localUrls=[];
-    for(var k=0;k<photos.length;k++){
-      localUrls.push(photos[k].dataUrl);
-      var fkL=Date.now()+k+1000;cIds.add(fkL);
-      addMsg({sender_id:me.id,text:photos[k].dataUrl,created_at:new Date().toISOString()});
-    }
-    // Upload all photos in parallel
+    // Step 1: Upload all files in parallel
+    var fns=[];
     var uploadPromises=[];
     for(var i=0;i<photos.length;i++){
-      (function(photo,idx){
-        var fn='chat_'+me.id+'_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).substr(2,4)+'.jpg';
-        uploadPromises.push(
-          sb.storage.from('photos').upload(fn,photo.file,{upsert:true}).then(function(r){
-            if(r.error)return null;
-            return sb.storage.from('photos').getPublicUrl(fn).data.publicUrl;
-          }).catch(function(){return null;})
-        );
-      })(photos[i],i);
+      var fn='chat_'+me.id+'_'+Date.now()+''+i+''+Math.random().toString(36).substr(2,4)+'.jpg';
+      fns.push(fn);
+      uploadPromises.push(sb.storage.from('photos').upload(fn,photos[i].file,{upsert:true}));
     }
-    var urls=await Promise.all(uploadPromises);
-    // Insert all messages into DB in parallel
+    var results=await Promise.all(uploadPromises.map(function(p){return p.catch(function(){return{error:true}});}));
+    // Step 2: Get URLs and insert messages in parallel
     var insertPromises=[];
-    for(var j=0;j<urls.length;j++){
-      if(!urls[j])continue;
-      insertPromises.push(
-        sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:urls[j]}).catch(function(){})
-      );
+    for(var j=0;j<results.length;j++){
+      if(results[j].error)continue;
+      var url=sb.storage.from('photos').getPublicUrl(fns[j]).data.publicUrl;
+      var fk=Date.now()+j;cIds.add(fk);
+      addMsg({sender_id:me.id,text:url,created_at:new Date().toISOString()});
+      insertPromises.push(sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:url}));
     }
-    await Promise.all(insertPromises);
-    if(!urls.filter(Boolean).length&&cnt>0){toast('Ошибка загрузки');return;}
+    await Promise.all(insertPromises.map(function(p){return p.catch(function(){});}));
+    if(!insertPromises.length&&cnt>0){toast('Ошибка загрузки');return;}
   }
   if(txt){
     inp.value='';inp.style.height='auto';
