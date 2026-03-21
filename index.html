@@ -91,10 +91,14 @@ input,textarea,select{font-family:inherit;color:var(--t1)}
 .cd-loc{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:12px;color:rgba(255,255,255,.6)}
 .cd-loc svg{width:12px;height:12px;fill:rgba(255,255,255,.5)}
 .cd-bio{font-size:13px;color:rgba(255,255,255,.6);margin-top:6px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-/* Stamps */
-.stmp{position:absolute;top:30%;font-size:28px;font-weight:800;padding:10px 16px;border-radius:10px;border:4px solid;opacity:0;pointer-events:none;z-index:5;letter-spacing:3px}
-.stmp.y{right:20px;color:var(--grn);border-color:var(--grn);transform:rotate(10deg)}
-.stmp.n{left:20px;color:var(--ac);border-color:var(--ac);transform:rotate(-10deg)}
+/* Stamps — big icon overlay on swipe */
+.stmp{position:absolute;top:35%;left:50%;transform:translate(-50%,-50%) scale(.5);opacity:0;pointer-events:none;z-index:5;transition:none}
+.stmp svg{width:100px;height:100px;filter:drop-shadow(0 4px 20px rgba(0,0,0,.5))}
+.stmp.y svg{fill:#2fdf84}
+.stmp.n svg{fill:#fe3c72}
+/* Swipe reaction: big icon pop animation */
+@keyframes stampPop{0%{transform:translate(-50%,-50%) scale(.3);opacity:1}50%{transform:translate(-50%,-50%) scale(1.2);opacity:1}100%{transform:translate(-50%,-50%) scale(.6);opacity:0}}
+.stmp.pop{animation:stampPop .6s ease forwards}
 .epty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px}
 .epty p{font-size:13px;color:var(--t3);text-align:center}
 
@@ -112,13 +116,17 @@ input,textarea,select{font-family:inherit;color:var(--t1)}
 .sa.rw{background:#2c2c2c;color:var(--gld)}
 .sa.bo{background:#2c2c2c;color:var(--vio)}
 
-/* Photo preview before sending */
+/* Photo preview strip before sending (up to 6) */
 .chat-preview{display:none;padding:8px 10px 0;background:var(--bg2);border-top:1px solid var(--brd)}
-.chat-preview.on{display:flex;align-items:flex-start;gap:8px}
-.chat-preview-img{width:60px;height:60px;border-radius:8px;object-fit:cover;flex-shrink:0}
-.chat-preview-close{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:2px}
-.chat-preview-close svg{width:12px;height:12px;fill:var(--t2)}
-.chat-preview-name{flex:1;font-size:12px;color:var(--t2);padding-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-preview.on{display:flex;align-items:center;gap:6px;overflow-x:auto}
+.chat-preview::-webkit-scrollbar{display:none}
+.cpv-item{position:relative;flex-shrink:0}
+.cpv-item img{width:56px;height:56px;border-radius:8px;object-fit:cover;display:block}
+.cpv-item .cpv-del{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
+.cpv-item .cpv-del svg{width:10px;height:10px;fill:#fff}
+.cpv-add{width:56px;height:56px;border-radius:8px;background:var(--bg3);border:1.5px dashed var(--t4);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.cpv-add svg{width:20px;height:20px;fill:var(--t3)}
+.cpv-count{font-size:11px;color:var(--t3);flex-shrink:0;padding:0 4px}
 
 /* CHAT LIST */
 .clist{flex:1;overflow-y:auto;padding:0 12px 12px}
@@ -307,10 +315,10 @@ input,textarea,select{font-family:inherit;color:var(--t1)}
     <div class="crds" id="cW"><div class="epty" id="cE" style="display:none"><p style="font-size:32px">✨</p><p>Анкет пока нет</p></div></div>
     <div class="sact">
       <button class="sa xs rw" onclick="toast('Rewind скоро!')"><svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
-      <button class="sa lg no" onclick="swA('left')"><svg viewBox="0 0 24 24"><path d="M18.3 5.7a1 1 0 00-1.4 0L12 10.6 7.1 5.7a1 1 0 00-1.4 1.4L10.6 12l-4.9 4.9a1 1 0 001.4 1.4L12 13.4l4.9 4.9a1 1 0 001.4-1.4L13.4 12l4.9-4.9a1 1 0 000-1.4z"/></svg></button>
-      <button class="sa sm st" onclick="swA('up')"><svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg></button>
+      <button class="sa lg no" onclick="swA('left')"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+      <button class="sa sm st" onclick="swA('up')"><svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg></button>
       <button class="sa lg yes" onclick="swA('right')"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button>
-      <button class="sa xs bo" onclick="toast('Boost скоро!')"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></button>
+      <button class="sa xs bo" onclick="toast('Boost скоро!')"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
     </div>
   </div>
   <div class="tab" id="tC">
@@ -341,14 +349,10 @@ input,textarea,select{font-family:inherit;color:var(--t1)}
   </div>
 </div>
 <div class="mgs" id="mB"></div>
-<div class="chat-preview" id="chatPv">
-  <div class="chat-preview-close" onclick="clearChatPh()"><svg viewBox="0 0 24 24"><path d="M18.3 5.7a1 1 0 00-1.4 0L12 10.6 7.1 5.7a1 1 0 00-1.4 1.4L10.6 12l-4.9 4.9a1 1 0 001.4 1.4L12 13.4l4.9 4.9a1 1 0 001.4-1.4L13.4 12l4.9-4.9a1 1 0 000-1.4z"/></svg></div>
-  <img class="chat-preview-img" id="chatPvImg">
-  <div class="chat-preview-name" id="chatPvName">Фото</div>
-</div>
+<div class="chat-preview" id="chatPv"></div>
 <div class="cIw"><div class="cIr">
   <div class="cAt" onclick="document.getElementById('chatPhI').click()"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div>
-  <input type="file" id="chatPhI" accept="image/*" style="display:none" onchange="previewChatPh(this)">
+  <input type="file" id="chatPhI" accept="image/*" multiple style="display:none" onchange="previewChatPh(this)">
   <textarea class="cIn" id="cI" placeholder="Сообщение..." rows="1" oninput="arI(this)" onkeydown="cK(event)"></textarea>
   <button class="cSn" onclick="cSendAll()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
 </div></div>
@@ -488,7 +492,7 @@ function renderC(){
     c.innerHTML='<div class="cd-img" style="'+(ph?'background-image:url('+ph+')':'')+'">'+(ph?'':'<div class="cd-ini">'+ini+'</div>')+barsH+tapH+'</div>'+
       '<div class="cd-ov">'+statusH+'<div class="cd-nm">'+esc(p.name)+'<span class="cd-age">'+(p.age||'')+'</span></div>'+
       '<div class="cd-loc"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>'+dist+' км от тебя</div>'+bioH+'</div>'+
-      '<div class="stmp y">LIKE</div><div class="stmp n">NOPE</div>';
+      '<div class="stmp y"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div><div class="stmp n"><svg viewBox="0 0 24 24"><path d="M18.3 5.7a1 1 0 00-1.4 0L12 10.6 7.1 5.7a1 1 0 00-1.4 1.4L10.6 12l-4.9 4.9a1 1 0 001.4 1.4L12 13.4l4.9 4.9a1 1 0 001.4-1.4L13.4 12l4.9-4.9a1 1 0 000-1.4z"/></svg></div>';
     if(i===ci){bindT(c);bindPhotoTap(c,p.id,photos);}w.appendChild(c);
   }
 }
@@ -513,11 +517,14 @@ function bindT(c){
 }
 function onMM(e){if(!drag)return;dx=e.clientX-sx;dy=e.clientY-sy;updCd();}
 function onMU(){document.removeEventListener('mousemove',onMM);document.removeEventListener('mouseup',onMU);if(drag)finSw();}
-function updCd(){if(!cc)return;cc.style.transform='translate('+dx+'px,'+dy+'px) rotate('+dx*.06+'deg)';var y=cc.querySelector('.stmp.y'),n=cc.querySelector('.stmp.n');if(y)y.style.opacity=Math.min(1,Math.max(0,dx/60));if(n)n.style.opacity=Math.min(1,Math.max(0,-dx/60));}
-function finSw(){drag=false;if(!cc)return;if(dx>60)doSw('right');else if(dx<-60)doSw('left');else{cc.classList.add('snp');cc.style.transform='';cc.querySelectorAll('.stmp').forEach(function(l){l.style.opacity=0;});}cc=null;}
+function updCd(){if(!cc)return;cc.style.transform='translate('+dx+'px,'+dy+'px) rotate('+dx*.06+'deg)';var y=cc.querySelector('.stmp.y'),n=cc.querySelector('.stmp.n');if(y){y.style.opacity=Math.min(1,Math.max(0,dx/80));y.style.transform='translate(-50%,-50%) scale('+(.5+Math.min(.5,Math.abs(dx)/120))+')';}if(n){n.style.opacity=Math.min(1,Math.max(0,-dx/80));n.style.transform='translate(-50%,-50%) scale('+(.5+Math.min(.5,Math.abs(dx)/120))+')';}}
+function finSw(){drag=false;if(!cc)return;if(dx>60)doSw('right');else if(dx<-60)doSw('left');else{cc.classList.add('snp');cc.style.transform='';cc.querySelectorAll('.stmp').forEach(function(l){l.style.opacity=0;l.style.transform='translate(-50%,-50%) scale(.5)';});}cc=null;}
 function swA(d){var w=document.getElementById('cW');var c=w.querySelector('.cd[style*="z-index: 2"]')||w.querySelector('.cd:last-child');if(!c)return;cc=c;doSw(d);}
 async function doSw(d){
   if(!cc||ci>=cards.length)return;var card=cc,p=cards[ci];
+  // Pop animation on the stamp
+  var stamp=card.querySelector(d==='left'?'.stmp.n':'.stmp.y');
+  if(stamp){stamp.style.opacity=1;stamp.classList.add('pop');}
   if(d==='right'||d==='up'){card.classList.add('er');playLike();
     try{await sb.from('likes').insert({from_user:me.id,to_user:p.id});
       var r=await sb.from('likes').select().eq('from_user',p.id).eq('to_user',me.id).maybeSingle();
@@ -584,47 +591,67 @@ function addMsg(m){
 }
 async function cSend(){var inp=document.getElementById('cI'),txt=inp.value.trim();if(!txt||!cMid)return;inp.value='';inp.style.height='auto';var fk=Date.now();cIds.add(fk);addMsg({sender_id:me.id,text:txt,created_at:new Date().toISOString()});try{await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:txt});}catch(e){toast('Ошибка');}}
 
-// PHOTO PREVIEW + SEND
-var _chatPhFile=null;
+// MULTI-PHOTO PREVIEW + SEND (up to 6)
+var _chatPhotos=[]; // array of {file, dataUrl}
 function previewChatPh(inp){
-  var f=inp.files[0];if(!f)return;_chatPhFile=f;
-  var reader=new FileReader();
-  reader.onload=function(e){
-    document.getElementById('chatPvImg').src=e.target.result;
-    document.getElementById('chatPvName').textContent=f.name;
-    document.getElementById('chatPv').classList.add('on');
-  };
-  reader.readAsDataURL(f);
+  var files=Array.from(inp.files||[]);
+  files.forEach(function(f){
+    if(_chatPhotos.length>=6)return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      _chatPhotos.push({file:f,dataUrl:e.target.result});
+      renderChatPv();
+    };
+    reader.readAsDataURL(f);
+  });
   inp.value='';
 }
-function clearChatPh(){_chatPhFile=null;document.getElementById('chatPv').classList.remove('on');}
+function renderChatPv(){
+  var pv=document.getElementById('chatPv');
+  if(!_chatPhotos.length){pv.classList.remove('on');pv.innerHTML='';return;}
+  pv.classList.add('on');
+  var h='';
+  _chatPhotos.forEach(function(p,i){
+    h+='<div class="cpv-item"><img src="'+p.dataUrl+'"><div class="cpv-del" onclick="removeChatPh('+i+')"><svg viewBox="0 0 24 24"><path d="M18.3 5.7a1 1 0 00-1.4 0L12 10.6 7.1 5.7a1 1 0 00-1.4 1.4L10.6 12l-4.9 4.9a1 1 0 001.4 1.4L12 13.4l4.9 4.9a1 1 0 001.4-1.4L13.4 12l4.9-4.9a1 1 0 000-1.4z"/></svg></div></div>';
+  });
+  if(_chatPhotos.length<6){
+    h+='<div class="cpv-add" onclick="document.getElementById(\'chatPhI\').click()"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></div>';
+  }
+  h+='<div class="cpv-count">'+_chatPhotos.length+'/6</div>';
+  pv.innerHTML=h;
+}
+function removeChatPh(i){_chatPhotos.splice(i,1);renderChatPv();}
+function clearChatPh(){_chatPhotos=[];renderChatPv();}
 async function cSendAll(){
-  // Send photo first if attached
-  if(_chatPhFile&&cMid){
-    toast('Загрузка...');
-    try{
-      var fn='chat_'+me.id+'_'+Date.now()+'.jpg';
-      var r=await sb.storage.from('photos').upload(fn,_chatPhFile,{upsert:true});
-      if(r.error){toast('Ошибка');return;}
-      var u=sb.storage.from('photos').getPublicUrl(fn);var url=u.data.publicUrl;
-      var fk=Date.now();cIds.add(fk);
-      addMsg({sender_id:me.id,text:url,created_at:new Date().toISOString()});
-      await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:url});
-    }catch(e){toast('Ошибка');return;}
+  if(!cMid)return;
+  var hasPhotos=_chatPhotos.length>0;
+  var inp=document.getElementById('cI'),txt=inp.value.trim();
+  if(!hasPhotos&&!txt)return;
+  // Upload and send each photo
+  if(hasPhotos){
+    toast('Загрузка '+_chatPhotos.length+' фото...');
+    for(var i=0;i<_chatPhotos.length;i++){
+      try{
+        var fn='chat_'+me.id+'_'+Date.now()+'_'+i+'.jpg';
+        var r=await sb.storage.from('photos').upload(fn,_chatPhotos[i].file,{upsert:true});
+        if(r.error)continue;
+        var u=sb.storage.from('photos').getPublicUrl(fn);var url=u.data.publicUrl;
+        var fk=Date.now()+i;cIds.add(fk);
+        addMsg({sender_id:me.id,text:url,created_at:new Date().toISOString()});
+        await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:url});
+      }catch(e){}
+    }
     clearChatPh();
   }
-  // Then send text if any
-  var inp=document.getElementById('cI'),txt=inp.value.trim();
-  if(txt&&cMid){
+  // Then send text
+  if(txt){
     inp.value='';inp.style.height='auto';
     var fk2=Date.now();cIds.add(fk2);
     addMsg({sender_id:me.id,text:txt,created_at:new Date().toISOString()});
     try{await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:txt});}catch(e){}
   }
-  if(!_chatPhFile&&!txt)return;
   toast('Отправлено ✓');
 }
-async function sendPhoto(inp){var f=inp.files[0];if(!f||!cMid)return;inp.value='';toast('Загрузка...');try{var fn='chat_'+me.id+'_'+Date.now()+'.jpg';var r=await sb.storage.from('photos').upload(fn,f,{upsert:true});if(r.error){toast('Ошибка');return;}var u=sb.storage.from('photos').getPublicUrl(fn);var url=u.data.publicUrl;var fk=Date.now();cIds.add(fk);addMsg({sender_id:me.id,text:url,created_at:new Date().toISOString()});await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:url});toast('Фото ✓');}catch(e){toast('Ошибка');}}
 function cK(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cSendAll();}}
 function arI(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
 async function doUnmatch(){if(!cMid||!confirm('Удалить чат?'))return;try{await sb.from('messages').delete().eq('match_id',cMid);await sb.from('matches').delete().eq('id',cMid);closeC();loadM();toast('Удалено');}catch(e){toast('Ошибка');}}
