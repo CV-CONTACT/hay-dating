@@ -149,7 +149,7 @@ input,textarea,select{font-family:inherit;color:var(--t1)}
 .cH-b{width:32px;height:32px;border-radius:50%;background:var(--s1);display:flex;align-items:center;justify-content:center}
 .cH-b svg{width:16px;height:16px;fill:var(--t2)}
 .cH-b.red svg{fill:var(--ac)}
-.mgs{flex:1;overflow-y:auto;padding:10px 10px 6px;display:flex;flex-direction:column;gap:3px}
+.mgs{flex:1;overflow-y:auto;padding:10px 10px 6px;display:flex;flex-direction:column;gap:8px}
 .mgs::-webkit-scrollbar{width:0}
 .mr{display:flex;align-items:flex-end;gap:6px;animation:mA .25s ease}.mr.me{flex-direction:row-reverse}
 @keyframes mA{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -597,9 +597,9 @@ function openC(m){
   if(window._cp)clearInterval(window._cp);window._cp=setInterval(loadMsgs,2500);
 }
 function closeC(){document.getElementById('CS').classList.remove('on');if(window._cp){clearInterval(window._cp);window._cp=null;}cMid=null;}
-async function loadMsgs(){if(!cMid)return;try{var r=await sb.from('messages').select().eq('match_id',cMid).order('id',{ascending:true}).limit(200);if(!r.data)return;var box=document.getElementById('mB');r.data.forEach(function(m){if(cIds.has(m.id))return;cIds.add(m.id);addMsg(m);});box.scrollTop=box.scrollHeight;}catch(e){}}
+async function loadMsgs(){if(!cMid)return;try{var r=await sb.from('messages').select().eq('match_id',cMid).order('id',{ascending:true}).limit(200);if(!r.data)return;var box=document.getElementById('mB');var wasBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80;var added=0;r.data.forEach(function(m){if(cIds.has(m.id))return;cIds.add(m.id);addMsg(m,true);added++;});if(added>0&&wasBottom)box.scrollTop=box.scrollHeight;}catch(e){}}
 function isImgUrl(s){return s&&/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(s);}
-function addMsg(m){
+function addMsg(m,noScroll){
   var mine=m.sender_id===me.id;var row=document.createElement('div');row.className='mr'+(mine?' me':'');
   var t=m.created_at?new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
   var txt=m.text||'';var isImg=isImgUrl(txt);
@@ -610,7 +610,7 @@ function addMsg(m){
   }else{var ini=cPP?(cPP.name||'?').substring(0,2).toUpperCase():'?';var ph=cPP?getMainPhoto(cPP):'';var avS=ph?'background-image:url('+ph+');background-size:cover;background-position:center':'';
     row.innerHTML='<div class="m-av" style="'+avS+'">'+(ph?'':ini)+'</div><div class="bb th'+imgCls+'">'+contentH+'<div class="bt">'+t+'</div></div>';
   }
-  var box=document.getElementById('mB');box.appendChild(row);box.scrollTop=box.scrollHeight;
+  var box=document.getElementById('mB');box.appendChild(row);if(!noScroll)box.scrollTop=box.scrollHeight;
 }
 async function cSend(){var inp=document.getElementById('cI'),txt=inp.value.trim();if(!txt||!cMid)return;inp.value='';inp.style.height='auto';var fk=Date.now();cIds.add(fk);addMsg({sender_id:me.id,text:txt,created_at:new Date().toISOString()});try{await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:txt});}catch(e){toast('Ошибка');}}
 
@@ -650,23 +650,26 @@ async function cSendAll(){
   var hasPhotos=_chatPhotos.length>0;
   var inp=document.getElementById('cI'),txt=inp.value.trim();
   if(!hasPhotos&&!txt)return;
-  // Upload and send each photo
   if(hasPhotos){
     toast('Загрузка '+_chatPhotos.length+' фото...');
-    for(var i=0;i<_chatPhotos.length;i++){
-      try{
-        var fn='chat_'+me.id+'_'+Date.now()+'_'+i+'.jpg';
-        var r=await sb.storage.from('photos').upload(fn,_chatPhotos[i].file,{upsert:true});
-        if(r.error)continue;
-        var u=sb.storage.from('photos').getPublicUrl(fn);var url=u.data.publicUrl;
-        var fk=Date.now()+i;cIds.add(fk);
-        addMsg({sender_id:me.id,text:url,created_at:new Date().toISOString()});
-        await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:url});
-      }catch(e){}
-    }
-    clearChatPh();
+    var photos=_chatPhotos.slice();clearChatPh();
+    // Upload ALL photos in parallel
+    var uploads=photos.map(function(p,i){
+      var fn='chat_'+me.id+'_'+Date.now()+'_'+Math.random().toString(36).substr(2,6)+'.jpg';
+      return sb.storage.from('photos').upload(fn,p.file,{upsert:true}).then(function(r){
+        if(r.error)return null;
+        return sb.storage.from('photos').getPublicUrl(fn).data.publicUrl;
+      }).catch(function(){return null;});
+    });
+    var urls=await Promise.all(uploads);
+    // Send all messages in parallel too
+    var sends=urls.filter(Boolean).map(function(url,i){
+      var fk=Date.now()+i;cIds.add(fk);
+      addMsg({sender_id:me.id,text:url,created_at:new Date().toISOString()});
+      return sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:url}).catch(function(){});
+    });
+    await Promise.all(sends);
   }
-  // Then send text
   if(txt){
     inp.value='';inp.style.height='auto';
     var fk2=Date.now();cIds.add(fk2);
