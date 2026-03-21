@@ -158,7 +158,9 @@ input,textarea,select{font-family:inherit;color:var(--t1)}
 .bb.th{background:var(--bg3);color:#fff;border-bottom-left-radius:4px}
 .bb.me{background:var(--grad);color:#fff;border-bottom-right-radius:4px}
 .bt{font-size:9px;opacity:.4;margin-top:2px;padding-bottom:2px}.mr.me .bt{text-align:right}
-.bb img.chat-img{max-width:180px;max-height:200px;border-radius:10px;display:block;margin-bottom:4px;cursor:pointer;object-fit:cover}
+.bb img.chat-img{max-width:180px;max-height:200px;border-radius:10px;display:block;cursor:pointer;object-fit:cover}
+.bb.img-msg{padding:4px;background:var(--bg3)!important;border:none!important}
+.bb.me.img-msg{background:var(--bg3)!important}
 .cIw{padding:6px 10px calc(6px + var(--sb));border-top:1px solid var(--brd);background:var(--bg2);flex-shrink:0}
 .cIr{display:flex;align-items:flex-end;gap:8px}
 .cAt{width:38px;height:38px;border-radius:50%;background:var(--s1);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
@@ -281,9 +283,18 @@ input,textarea,select{font-family:inherit;color:var(--t1)}
 @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 #ptc{position:fixed;inset:0;z-index:8001;pointer-events:none}
 
-.zoom{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.95);align-items:center;justify-content:center;cursor:pointer}
+.zoom{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.97);flex-direction:column;align-items:center;justify-content:center;cursor:pointer}
 .zoom.on{display:flex}
-.zoom img{max-width:92%;max-height:85%;border-radius:12px;object-fit:contain}
+.zoom img{max-width:92%;max-height:80%;border-radius:4px;object-fit:contain;user-select:none}
+.zoom-close{position:absolute;top:12px;right:14px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
+.zoom-close svg{width:18px;height:18px;fill:#fff}
+.zoom-nav{position:absolute;bottom:20px;display:flex;gap:6px;z-index:2}
+.zoom-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3)}
+.zoom-dot.on{background:#fff}
+.zoom-counter{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:13px;color:rgba(255,255,255,.5);z-index:2}
+.zoom-arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
+.zoom-arrow svg{width:20px;height:20px;fill:rgba(255,255,255,.6)}
+.zoom-arrow.left{left:10px}.zoom-arrow.right{right:10px}
 
 .noti{position:fixed;top:0;left:0;right:0;z-index:7000;transform:translateY(-100%);transition:transform .4s cubic-bezier(.22,1,.36,1);padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:10px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.5)}
 .noti.on{transform:translateY(0)}
@@ -385,7 +396,14 @@ input,textarea,select{font-family:inherit;color:var(--t1)}
 <!-- MATCH -->
 <div class="mov" id="mO"><canvas id="ptc"></canvas><div class="mvt">IT'S A MATCH!</div><div class="mvs" id="mOS">—</div><button class="mvb" onclick="clM()">Написать</button></div>
 
-<div class="zoom" id="zoomM" onclick="this.classList.remove('on')"><img id="zoomImg"></div>
+<div class="zoom" id="zoomM">
+  <div class="zoom-close" onclick="closeZoom()"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></div>
+  <div class="zoom-counter" id="zoomCnt"></div>
+  <div class="zoom-arrow left" id="zoomL" onclick="zoomPrev()" style="display:none"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></div>
+  <img id="zoomImg" onclick="event.stopPropagation()">
+  <div class="zoom-arrow right" id="zoomR" onclick="zoomNext()" style="display:none"><svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></div>
+  <div class="zoom-nav" id="zoomNav"></div>
+</div>
 <div class="noti" id="noti" onclick="nCl()"><div class="n-av" id="nAv"></div><div class="n-b"><div class="n-a">Hay Dating</div><div class="n-n" id="nNm">—</div><div class="n-t" id="nTx">—</div></div></div>
 <div class="toast" id="tst"></div>
 
@@ -581,11 +599,12 @@ function addMsg(m){
   var mine=m.sender_id===me.id;var row=document.createElement('div');row.className='mr'+(mine?' me':'');
   var t=m.created_at?new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
   var txt=m.text||'';var isImg=isImgUrl(txt);
+  var imgCls=isImg?' img-msg':'';
   var contentH=isImg?'<img class="chat-img" src="'+esc(txt)+'" onclick="zoomUrl(\''+esc(txt)+'\')">':esc(txt);
   if(mine){var myIni=(me.name||'?').substring(0,2).toUpperCase();var myPh=getMainPhoto(me);var myAvS=myPh?'background-image:url('+myPh+');background-size:cover;background-position:center':'';
-    row.innerHTML='<div class="m-av" style="'+myAvS+'">'+(myPh?'':myIni)+'</div><div class="bb me">'+contentH+'<div class="bt">'+t+'</div></div>';
+    row.innerHTML='<div class="m-av" style="'+myAvS+'">'+(myPh?'':myIni)+'</div><div class="bb me'+imgCls+'">'+contentH+'<div class="bt">'+t+'</div></div>';
   }else{var ini=cPP?(cPP.name||'?').substring(0,2).toUpperCase():'?';var ph=cPP?getMainPhoto(cPP):'';var avS=ph?'background-image:url('+ph+');background-size:cover;background-position:center':'';
-    row.innerHTML='<div class="m-av" style="'+avS+'">'+(ph?'':ini)+'</div><div class="bb th">'+contentH+'<div class="bt">'+t+'</div></div>';
+    row.innerHTML='<div class="m-av" style="'+avS+'">'+(ph?'':ini)+'</div><div class="bb th'+imgCls+'">'+contentH+'<div class="bt">'+t+'</div></div>';
   }
   var box=document.getElementById('mB');box.appendChild(row);box.scrollTop=box.scrollHeight;
 }
@@ -662,8 +681,48 @@ function endC(){callOn=false;clearInterval(callInt);document.getElementById('cal
 function tgMu(){muted=!muted;document.getElementById('muB').textContent=muted?'🔇':'🎙';}
 function fTm(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
 
-function zoomPh(p){var ph=p?getMainPhoto(p):'';if(!ph)return;document.getElementById('zoomImg').src=ph;document.getElementById('zoomM').classList.add('on');}
-function zoomUrl(u){if(!u)return;document.getElementById('zoomImg').src=u;document.getElementById('zoomM').classList.add('on');}
+function zoomPh(p){var ph=p?getMainPhoto(p):'';if(!ph)return;openZoom([ph],0);}
+function zoomUrl(u){if(!u)return;
+  // Collect all chat images for gallery browsing
+  var imgs=[];var idx=0;
+  document.querySelectorAll('#mB .chat-img').forEach(function(el,i){
+    imgs.push(el.src);if(el.src===u)idx=i;
+  });
+  if(!imgs.length)imgs=[u];
+  openZoom(imgs,idx);
+}
+var _zImgs=[],_zIdx=0;
+function openZoom(imgs,idx){
+  _zImgs=imgs;_zIdx=idx||0;
+  renderZoom();
+  document.getElementById('zoomM').classList.add('on');
+}
+function closeZoom(){document.getElementById('zoomM').classList.remove('on');}
+function renderZoom(){
+  document.getElementById('zoomImg').src=_zImgs[_zIdx];
+  var cnt=document.getElementById('zoomCnt');
+  cnt.textContent=_zImgs.length>1?(_zIdx+1)+' / '+_zImgs.length:'';
+  document.getElementById('zoomL').style.display=_zImgs.length>1&&_zIdx>0?'flex':'none';
+  document.getElementById('zoomR').style.display=_zImgs.length>1&&_zIdx<_zImgs.length-1?'flex':'none';
+  var nav=document.getElementById('zoomNav');
+  if(_zImgs.length>1){
+    nav.innerHTML='';_zImgs.forEach(function(_,i){var d=document.createElement('div');d.className='zoom-dot'+(i===_zIdx?' on':'');d.onclick=function(e){e.stopPropagation();_zIdx=i;renderZoom();};nav.appendChild(d);});
+  }else nav.innerHTML='';
+}
+function zoomPrev(){if(_zIdx>0){_zIdx--;renderZoom();}}
+function zoomNext(){if(_zIdx<_zImgs.length-1){_zIdx++;renderZoom();}}
+// Swipe on zoom image
+(function(){
+  var zsx=0,zdx=0,zd=false;
+  document.getElementById('zoomM').addEventListener('touchstart',function(e){
+    if(e.target.tagName==='IMG'||e.target===this){zsx=e.touches[0].clientX;zdx=0;zd=true;}
+  },{passive:true});
+  document.getElementById('zoomM').addEventListener('touchmove',function(e){if(!zd)return;zdx=e.touches[0].clientX-zsx;},{passive:true});
+  document.getElementById('zoomM').addEventListener('touchend',function(){
+    if(!zd)return;zd=false;
+    if(zdx>50)zoomPrev();else if(zdx<-50)zoomNext();else if(Math.abs(zdx)<10)closeZoom();
+  });
+})();
 
 // PARTNER PROFILE
 var ppPhIdx=0;
