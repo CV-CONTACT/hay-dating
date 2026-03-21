@@ -617,9 +617,12 @@ async function cSend(){var inp=document.getElementById('cI'),txt=inp.value.trim(
 // MULTI-PHOTO PREVIEW + SEND (up to 6)
 var _chatPhotos=[]; // array of {file, dataUrl}
 function previewChatPh(inp){
-  var files=Array.from(inp.files||[]);
+  if(!inp.files||!inp.files.length)return;
+  var files=[];for(var i=0;i<inp.files.length;i++)files.push(inp.files[i]);
+  var loaded=0;
   files.forEach(function(f){
-    if(_chatPhotos.length>=6)return;
+    if(_chatPhotos.length+loaded>=6)return;
+    loaded++;
     var reader=new FileReader();
     reader.onload=function(e){
       _chatPhotos.push({file:f,dataUrl:e.target.result});
@@ -629,16 +632,21 @@ function previewChatPh(inp){
   });
   inp.value='';
 }
+function addMorePhotos(){
+  var inp=document.getElementById('chatPhI');
+  inp.value='';
+  inp.click();
+}
 function renderChatPv(){
   var pv=document.getElementById('chatPv');
   if(!_chatPhotos.length){pv.classList.remove('on');pv.innerHTML='';return;}
   pv.classList.add('on');
   var h='';
-  _chatPhotos.forEach(function(p,i){
-    h+='<div class="cpv-item"><img src="'+p.dataUrl+'"><div class="cpv-del" onclick="removeChatPh('+i+')"><svg viewBox="0 0 24 24"><path d="M18.3 5.7a1 1 0 00-1.4 0L12 10.6 7.1 5.7a1 1 0 00-1.4 1.4L10.6 12l-4.9 4.9a1 1 0 001.4 1.4L12 13.4l4.9 4.9a1 1 0 001.4-1.4L13.4 12l4.9-4.9a1 1 0 000-1.4z"/></svg></div></div>';
-  });
+  for(var i=0;i<_chatPhotos.length;i++){
+    h+='<div class="cpv-item"><img src="'+_chatPhotos[i].dataUrl+'"><div class="cpv-del" onclick="removeChatPh('+i+')"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></div></div>';
+  }
   if(_chatPhotos.length<6){
-    h+='<div class="cpv-add" onclick="document.getElementById(\'chatPhI\').click()"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></div>';
+    h+='<div class="cpv-add" onclick="addMorePhotos()"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></div>';
   }
   h+='<div class="cpv-count">'+_chatPhotos.length+'/6</div>';
   pv.innerHTML=h;
@@ -651,24 +659,32 @@ async function cSendAll(){
   var inp=document.getElementById('cI'),txt=inp.value.trim();
   if(!hasPhotos&&!txt)return;
   if(hasPhotos){
-    toast('Загрузка '+_chatPhotos.length+' фото...');
-    var photos=_chatPhotos.slice();clearChatPh();
+    var cnt=_chatPhotos.length;
+    toast('Загрузка '+cnt+' фото...');
+    var photos=_chatPhotos.slice();
+    clearChatPh();
     // Upload ALL photos in parallel
-    var uploads=photos.map(function(p,i){
-      var fn='chat_'+me.id+'_'+Date.now()+'_'+Math.random().toString(36).substr(2,6)+'.jpg';
-      return sb.storage.from('photos').upload(fn,p.file,{upsert:true}).then(function(r){
-        if(r.error)return null;
-        return sb.storage.from('photos').getPublicUrl(fn).data.publicUrl;
-      }).catch(function(){return null;});
-    });
-    var urls=await Promise.all(uploads);
-    // Send all messages in parallel too
-    var sends=urls.filter(Boolean).map(function(url,i){
-      var fk=Date.now()+i;cIds.add(fk);
-      addMsg({sender_id:me.id,text:url,created_at:new Date().toISOString()});
-      return sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:url}).catch(function(){});
-    });
-    await Promise.all(sends);
+    var uploadPromises=[];
+    for(var i=0;i<photos.length;i++){
+      (function(photo,idx){
+        var fn='chat_'+me.id+'_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).substr(2,4)+'.jpg';
+        var p=sb.storage.from('photos').upload(fn,photo.file,{upsert:true}).then(function(r){
+          if(r.error){console.error('Upload error',r.error);return null;}
+          var pub=sb.storage.from('photos').getPublicUrl(fn);
+          return pub.data.publicUrl;
+        }).catch(function(e){console.error('Upload catch',e);return null;});
+        uploadPromises.push(p);
+      })(_chatPhotos.length?photos[i]:photos[i],i);
+    }
+    var urls=await Promise.all(uploadPromises);
+    var goodUrls=urls.filter(function(u){return u;});
+    // Send messages for each uploaded photo
+    for(var j=0;j<goodUrls.length;j++){
+      var fk=Date.now()+j;cIds.add(fk);
+      addMsg({sender_id:me.id,text:goodUrls[j],created_at:new Date().toISOString()});
+      try{await sb.from('messages').insert({match_id:cMid,sender_id:me.id,text:goodUrls[j]});}catch(e){}
+    }
+    if(!goodUrls.length&&cnt>0){toast('Ошибка загрузки');return;}
   }
   if(txt){
     inp.value='';inp.style.height='auto';
