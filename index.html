@@ -598,7 +598,7 @@ function openC(m){
 }
 function closeC(){document.getElementById('CS').classList.remove('on');if(window._cp){clearInterval(window._cp);window._cp=null;}cMid=null;}
 async function loadMsgs(){if(!cMid)return;try{var r=await sb.from('messages').select().eq('match_id',cMid).order('id',{ascending:true}).limit(200);if(!r.data)return;var box=document.getElementById('mB');var wasBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80;var added=0;r.data.forEach(function(m){if(cIds.has(m.id))return;cIds.add(m.id);addMsg(m,true);added++;});if(added>0&&wasBottom)box.scrollTop=box.scrollHeight;}catch(e){}}
-function isImgUrl(s){return s&&/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(s);}
+function isImgUrl(s){if(!s)return false;if(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(s))return true;if(/supabase\.co\/storage\/v1\/object/i.test(s))return true;return false;}
 function addMsg(m,noScroll){
   var mine=m.sender_id===me.id;var row=document.createElement('div');row.className='mr'+(mine?' me':'');
   var t=m.created_at?new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
